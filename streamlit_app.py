@@ -1,44 +1,41 @@
-import streamlit as st
 import pandas as pd
-import altair as alt
+import streamlit as st
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Title and intro
+# Load predictions
+df = pd.read_csv("rf_test_predictions.csv")
+
+# Streamlit configuration
+st.set_page_config(page_title="Startup Success Dashboard", layout="wide")
+
 st.title("🚀 Startup Success Prediction Dashboard")
 st.markdown("""
-This tool predicts whether a startup is likely to succeed based on early-stage features like funding, milestones, and investor signals.
-
-**Instructions:**
-- Use the dropdown to select a startup
-- View its predicted success/failure and probability
-- Explore all predictions in the table below
-
-*Built using XGBoost and SHAP — Project by Namandeep Singh Nayyar.*
+This dashboard displays startup success predictions using a Random Forest model.
 """)
 
-# Load predictions file
-@st.cache_data
-def load_data():
-    df = pd.read_csv("startup_predictions.csv")
-    return df
+# Sidebar filter
+st.sidebar.header("Filter")
+min_prob = st.sidebar.slider("Minimum Success Probability", 0.0, 1.0, 0.9, 0.01)
 
-df = load_data()
+# Filtered view
+filtered_df = df[df["success_probability"] >= min_prob]
 
-# Dropdown to select a startup
-startup_names = df["name"].dropna().unique()
-selected_name = st.selectbox("🔍 Select a Startup to View Prediction", sorted(startup_names))
+st.subheader(f"Top Predicted Startups (Probability ≥ {min_prob})")
+st.dataframe(
+    filtered_df[["name", "success_probability", "predicted_success"]]
+    .sort_values(by="success_probability", ascending=False)
+    .head(10)
+)
 
-# Show prediction details
-if selected_name:
-    selected_row = df[df["name"] == selected_name].iloc[0]
-    st.subheader(f"🔢 Prediction for: {selected_row['name']}")
-    st.metric("Success Probability", f"{selected_row['success_probability']:.2%}")
-    st.metric("Predicted Outcome", "Success" if selected_row['predicted_success'] == 1 else "Failure")
+# Histogram plot
+st.subheader("Distribution of Success Probabilities")
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.histplot(df["success_probability"], bins=20, kde=True, color="skyblue", ax=ax)
+ax.set_title("Distribution of Startup Success Probabilities")
+ax.set_xlabel("Probability of Success")
+ax.set_ylabel("Number of Startups")
+st.pyplot(fig)
 
-# Show full table with filter
 st.markdown("---")
-st.subheader("📊 All Predictions")
-st.dataframe(df[["name", "success_probability", "predicted_success"]].sort_values(by="success_probability", ascending=False))
-
-# Download option
-csv = df.to_csv(index=False)
-st.download_button("📥 Download Predictions as CSV", csv, "startup_predictions.csv", "text/csv")
+st.markdown("Built by Namandeep Singh Nayyar | Model used: Random Forest")
