@@ -1,70 +1,57 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load the prediction results
+# Load predictions
 df = pd.read_csv("rf_test_predictions.csv")
-startup_names = df["name"].dropna().unique()
+df = df.sort_values(by="success_probability", ascending=False)
 
-# --- Sidebar layout ---
-st.sidebar.markdown("## 🔍 Company Explorer", unsafe_allow_html=True)
+# Unique startup names
+startup_names = df["name"].unique()
 
-# Startup selector
-st.sidebar.markdown("### Select a startup")
-selected_name = st.sidebar.selectbox("", startup_names)
-selected_row = df[df["name"] == selected_name].iloc[0]
+# Sidebar – Company Explorer
+with st.sidebar:
+    st.markdown("## 🔍 Company Explorer")
 
-# Display selected startup prediction
-success_prob = selected_row["success_probability"]
-predicted = selected_row["predicted_success"]
+    selected_name = st.selectbox("Select a startup", startup_names)
 
-st.sidebar.markdown("<h4 style='margin-top: 20px;'>Success Probability:</h4>"
-                    f"<div style='font-size: 28px; font-weight: bold; color: #00FFAA;'> {success_prob:.2f} </div>",
-                    unsafe_allow_html=True)
+    selected_row = df[df["name"] == selected_name].iloc[0]
+    success_prob = selected_row["success_probability"]
+    predicted = selected_row["predicted_success"]
 
-if predicted == 1:
-    st.sidebar.markdown("""
-        <div style='margin-top: 10px; background-color: #167D32; padding: 16px; border-radius: 8px; 
-        color: white; font-size: 22px; font-weight: bold;'>
-        ✅ Prediction: Successful</div>
-    """, unsafe_allow_html=True)
-else:
-    st.sidebar.markdown("""
-        <div style='margin-top: 10px; background-color: #911F1F; padding: 16px; border-radius: 8px; 
-        color: white; font-size: 22px; font-weight: bold;'>
-        ❌ Prediction: Unsuccessful</div>
-    """, unsafe_allow_html=True)
+    st.markdown("### Success Probability:")
+    st.markdown(f"<h1 style='color:#00ffaa'>{success_prob:.2f}</h1>", unsafe_allow_html=True)
 
-# Slider for dynamic probability filtering
-min_prob = st.sidebar.slider("Minimum Success Probability (Top list)", 0.0, 1.0, 0.70)
+    if predicted == 1:
+        st.markdown(
+            "<div style='background-color:#167D32;padding:16px;border-radius:10px;color:white;font-size:20px;font-weight:bold;'>"
+            "✅ Prediction: Successful</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            "<div style='background-color:#911F1F;padding:16px;border-radius:10px;color:white;font-size:20px;font-weight:bold;'>"
+            "❌ Prediction: Unsuccessful</div>",
+            unsafe_allow_html=True
+        )
 
-# --- Main layout ---
-st.title("🚀 Startup Success Prediction Dashboard")
+    st.markdown("### Minimum Success Probability (Top list)")
+    min_prob = st.slider("", 0.0, 1.0, 0.7, step=0.01)
 
-# Top 500 Companies
-top500 = df[df["is_top500"] == 1].sort_values(by="success_probability", ascending=False)[
-    ["name", "success_probability", "predicted_success"]
-].reset_index(drop=True)
+# Main Dashboard
+st.markdown("<h1 style='text-align: center;'>📊 Startup Success Prediction Dashboard</h1>", unsafe_allow_html=True)
 
-st.subheader("📊 Top 500 Startups")
-st.dataframe(top500, use_container_width=True)
+# Top Startups
+top_startups = df[df["success_probability"] >= min_prob]
+st.markdown(f"### 🏆 Top Startups (Success ≥ {min_prob:.2f})")
+st.dataframe(top_startups[["name", "success_probability", "predicted_success"]].reset_index(drop=True))
 
-# Dynamic list based on slider
-st.subheader(f" 🎲 Startups with Success Probability ≥ {min_prob:.2f}")
-dynamic_filtered = df[df["success_probability"] >= min_prob].sort_values(
-    by="success_probability", ascending=False
-)[["name", "success_probability", "predicted_success"]].reset_index(drop=True)
-st.dataframe(dynamic_filtered, use_container_width=True)
-
-# --- Plot ---
-st.subheader(":chart: Distribution of Success Probabilities")
-plt.figure(figsize=(8, 4))
-sns.histplot(df["success_probability"], bins=20, kde=True, color="skyblue")
-plt.xlabel("Probability of Success")
-plt.ylabel("Number of Startups")
-plt.grid(True)
-plt.tight_layout()
-st.pyplot(plt.gcf())
-plt.clf()
-
+# Success Probability Distribution
+st.markdown("### 📈 Distribution of Success Probabilities")
+fig, ax = plt.subplots(figsize=(8, 4))
+sns.histplot(df["success_probability"], bins=20, kde=True, color='skyblue', ax=ax)
+ax.set_xlabel("Probability of Success")
+ax.set_ylabel("Number of Startups")
+ax.set_title("Distribution of Success Probabilities (Random Forest)")
+st.pyplot(fig)
