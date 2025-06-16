@@ -1,62 +1,48 @@
-import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
-import seaborn as sns
+import pandas as pd
+import numpy as np
+import joblib
 
-# Load dataset
-df = pd.read_csv("rf_test_predictions.csv")
-df.sort_values(by="success_probability", ascending=False, inplace=True)
+# Load model and scaler
+model = joblib.load("stacked_model.pkl")        # Save your model with joblib.dump()
+scaler = joblib.load("scaler.pkl")              # Save scaler as well
 
-# Streamlit page config
-st.set_page_config(page_title="Startup Success Dashboard", layout="wide")
+# Columns to drop
+drop_cols = [
+    'id', 'name', 'city', 'zip_code', 'founded_at', 'closed_at',
+    'first_funding_at', 'last_funding_at', 'object_id',
+    'category_code', 'status', 'labels', 'state', 'state_code'
+]
 
-# Sidebar - Company Explorer
-with st.sidebar:
-    st.markdown("## 🔍 Company Explorer")
-    selected_name = st.selectbox("Select a startup", df["name"].unique())
-    
-    selected_row = df[df["name"] == selected_name].iloc[0]
-    success_prob = selected_row["success_probability"]
-    predicted = selected_row["predicted_success"]
+# Streamlit UI
+st.title("Startup Success Probability Predictor")
 
-    st.markdown("**Success Probability:**")
-    st.markdown(f"<h1 style='color:#00f5a0;'>{success_prob:.2f}</h1>", unsafe_allow_html=True)
+uploaded_file = st.file_uploader("Upload your test CSV", type=["csv"])
 
-    if predicted == 1:
-        st.markdown(
-            "<div style='background-color: #22aa44; padding: 18px; border-radius: 10px;'>"
-            "<span style='font-size: 22px; color: white;'>✅ <strong>Prediction: Successful</strong></span></div>",
-            unsafe_allow_html=True
-        )
+if uploaded_file is not None:
+    test_df = pd.read_csv(uploaded_file)
+
+    if 'name' not in test_df.columns:
+        st.error("The CSV must include a 'name' column.")
     else:
-        st.markdown(
-            "<div style='background-color: #cc2233; padding: 18px; border-radius: 10px;'>"
-            "<span style='font-size: 22px; color: white;'>❌ <strong>Prediction: Unsuccessful</strong></span></div>",
-            unsafe_allow_html=True
-        )
+        names = test_df['name']
+        X_test = test_df.drop(columns=drop_cols, errors='ignore')
+        X_test = X_test.fillna(X_test.median(numeric_only=True))
 
-    st.markdown("---")
-    min_prob = st.slider("Minimum Success Probability (Top list)", 0.0, 1.0, 0.7)
+        try:
+            X_scaled = scaler.transform(X_test)
+            probs = model.predict_proba(X_scaled)[:, 1]
 
-# Header
-st.markdown("<h1 style='text-align: center;'>🚀 Startup Success Prediction Dashboard</h1>", unsafe_allow_html=True)
+            result_df = pd.DataFrame({
+                'Startup Name': names,
+                'Success Probability': np.round(probs, 2)
+            })
 
-# Top 500 Table
-st.markdown("### 🥇 Top 500 Startups")
-top_500 = df.head(500)[["name", "success_probability", "predicted_success"]]
-st.dataframe(top_500, use_container_width=True)
+            st.success("✅ Predictions generated successfully!")
+            st.dataframe(result_df)
 
-# Filtered Table
-filtered_names = df[df["success_probability"] == min_prob][["name"]]
-st.markdown(f"### 📊 Startups with Probability = {min_prob:.2f}")
-st.dataframe(filtered_names, use_container_width=True)
+            csv = result_df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Results as CSV", csv, "predictions.csv", "text/csv")
 
-# Distribution Plot
-st.markdown("### 📉 Distribution of Success Probabilities")
-plt.figure(figsize=(10, 4))
-sns.histplot(df["success_probability"], bins=20, kde=True, color='skyblue')
-plt.xlabel("Probability of Success")
-plt.ylabel("Number of Startups")
-plt.grid(True)
-st.pyplot(plt.gcf())
-plt.clf()
+        except Exception as e:
+            st.error(f"Error during prediction: {e}")
