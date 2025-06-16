@@ -3,6 +3,12 @@ import pandas as pd
 import numpy as np
 import joblib
 
+# 💡 Add these imports for unpickling!
+from sklearn.ensemble import StackingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
+from xgboost import XGBClassifier
+
 # Load model and scaler
 model = joblib.load("stacked_model.pkl")
 scaler = joblib.load("scaler.pkl")
