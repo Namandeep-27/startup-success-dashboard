@@ -4,10 +4,10 @@ import numpy as np
 import joblib
 
 # Load model and scaler
-model = joblib.load("stacked_model.pkl")        # Save your model with joblib.dump()
-scaler = joblib.load("scaler.pkl")              # Save scaler as well
+model = joblib.load("stacked_model.pkl")
+scaler = joblib.load("scaler.pkl")
 
-# Columns to drop
+# Define columns to drop
 drop_cols = [
     'id', 'name', 'city', 'zip_code', 'founded_at', 'closed_at',
     'first_funding_at', 'last_funding_at', 'object_id',
@@ -15,34 +15,59 @@ drop_cols = [
 ]
 
 # Streamlit UI
-st.title("Startup Success Probability Predictor")
+st.set_page_config(page_title="Startup Success Predictor", layout="centered")
+st.title("🚀 Startup Success Probability Predictor")
+st.markdown("Upload your startup dataset and explore predictions interactively.")
 
-uploaded_file = st.file_uploader("Upload your test CSV", type=["csv"])
+# Upload
+uploaded_file = st.file_uploader("📤 Upload cleaned test CSV", type=["csv"])
 
 if uploaded_file is not None:
-    test_df = pd.read_csv(uploaded_file)
+    try:
+        test_df = pd.read_csv(uploaded_file)
 
-    if 'name' not in test_df.columns:
-        st.error("The CSV must include a 'name' column.")
-    else:
-        names = test_df['name']
-        X_test = test_df.drop(columns=drop_cols, errors='ignore')
-        X_test = X_test.fillna(X_test.median(numeric_only=True))
+        if 'name' not in test_df.columns:
+            st.error("❌ The file must contain a 'name' column.")
+        else:
+            # Step 1: Save startup names
+            startup_names = test_df['name']
 
-        try:
+            # Step 2: Clean and scale data
+            X_test = test_df.drop(columns=drop_cols, errors='ignore')
+            X_test = X_test.fillna(X_test.median(numeric_only=True))
             X_scaled = scaler.transform(X_test)
-            probs = model.predict_proba(X_scaled)[:, 1]
 
+            # Step 3: Predict
+            probs = model.predict_proba(X_scaled)[:, 1]
+            probs_rounded = np.round(probs, 2)
+
+            # Combine results
             result_df = pd.DataFrame({
-                'Startup Name': names,
-                'Success Probability': np.round(probs, 2)
+                "Startup Name": startup_names,
+                "Success Probability": probs_rounded
             })
 
-            st.success("✅ Predictions generated successfully!")
-            st.dataframe(result_df)
+            # Step 4: Dropdown to search
+            st.markdown("### 🔍 Search or Select a Company")
+            selected_name = st.selectbox("Choose a startup", result_df["Startup Name"].sort_values(), key="search")
 
-            csv = result_df.to_csv(index=False).encode('utf-8')
-            st.download_button("Download Results as CSV", csv, "predictions.csv", "text/csv")
+            selected_prob = result_df[result_df["Startup Name"] == selected_name]["Success Probability"].values[0]
 
-        except Exception as e:
-            st.error(f"Error during prediction: {e}")
+            # Step 5: Show probability
+            st.markdown(f"### 🧠 Predicted Success Probability: **{selected_prob * 100:.2f}%**")
+            st.progress(min(selected_prob, 1.0))
+
+            # Optional: Show full table + download
+            with st.expander("📋 See All Predictions"):
+                st.dataframe(result_df)
+
+            csv = result_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Download Full Predictions",
+                data=csv,
+                file_name="startup_success_predictions.csv",
+                mime="text/csv"
+            )
+
+    except Exception as e:
+        st.error(f"⚠️ Something went wrong: {e}")
