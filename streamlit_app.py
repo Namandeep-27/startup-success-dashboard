@@ -1,37 +1,59 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
-# Load the predictions CSV from the repo
+Page configuration
+
+st.set_page_config(page_title=“Startup Success Probability Predictor”, layout=“centered”)
+st.title(“🚀 Startup Success Probability Predictor”)
+st.markdown(”””
+Select a startup to see its predicted success probability.
+“””)
+
+Load data from local CSV (already in repo)
+
 @st.cache_data
 def load_data():
-    return pd.read_csv("predicted_success_probabilities.csv")
+df = pd.read_csv(“predicted_success_probabilities.csv”)
+df[“success_probability”] = np.round(df[“success_probability”], 2)
+return df
 
-df = load_data()
+Load the prediction data
 
-# Streamlit UI
-st.set_page_config(page_title="Startup Success Predictor", layout="centered")
-st.title("🚀 Startup Success Probability Predictor")
-st.markdown("Select a startup to see its predicted success probability.")
+data = load_data()
 
-# Dropdown to search/select startup
-startup_name = st.selectbox("🔍 Search or Select a Startup", df["name"].sort_values())
+Searchable input box
 
-# Get probability
-prob = df[df["name"] == startup_name]["success_probability"].values[0]
+search_query = st.text_input(“🔍 Search or Select a Startup”)
 
-# Display probability
-st.metric(label="Success Probability", value=f"{prob*100:.2f}%")
-st.progress(min(prob, 1.0))
+Filter options based on search query
 
-# Optional: Show full table
-with st.expander("📋 Show Full Prediction Table"):
-    st.dataframe(df)
+filtered_startups = data[data[“name”].str.contains(search_query, case=False, na=False)]
 
-# Download option
-csv = df.to_csv(index=False).encode("utf-8")
-st.download_button(
-    "⬇️ Download Full Predictions",
-    data=csv,
-    file_name="startup_success_predictions.csv",
-    mime="text/csv"
-)
+Dropdown for selecting startup
+
+startup_list = filtered_startups[“name”].tolist()
+if not startup_list:
+st.warning(“No matching startup found.”)
+st.stop()
+
+selected_name = st.selectbox(“Select from matches below”, startup_list)
+selected_prob = filtered_startups[filtered_startups[“name”] == selected_name][“success_probability”].values[0]
+
+Display prediction
+
+st.subheader(“Success Probability”)
+st.markdown(f”### {selected_prob * 100:.2f}%”)
+st.progress(min(selected_prob, 1.0))
+
+Show full table (expandable)
+
+with st.expander(“📋 Show Full Prediction Table”):
+st.dataframe(data.sort_values(“success_probability”, ascending=False), use_container_width=True)
+
+Footer
+
+st.markdown(”””
+
+Made with ❤️ for academic demonstration purposes.
+“””)
